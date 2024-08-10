@@ -1,0 +1,51 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - dev
+      - prod
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-west-2  # Set your AWS region here
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set role to assume for dev
+        if: github.ref == 'refs/heads/dev'
+        run: echo "ROLE_TO_ASSUME=${{ secrets.DEV_ROLE_ARN }}" >> $GITHUB_ENV
+
+      - name: Set role to assume for prod
+        if: github.ref == 'refs/heads/prod'
+        run: echo "ROLE_TO_ASSUME=${{ secrets.PROD_ROLE_ARN }}" >> $GITHUB_ENV
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-${{ github.sha }}  # Unique identifier for the session
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0  # Replace with your desired Terraform version
+
+      - name: Initialize Terraform
+        run: terraform init
+
+      - name: Plan Terraform
+        run: terraform plan
+
+      - name: Apply Terraform
+        run: terraform apply -auto-approve
